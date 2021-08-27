@@ -26,34 +26,57 @@ describe("Get the balance", () => {
   });
 
   it("should be able to get the user account balance", async () => {
-    const user: ICreateUserDTO = {
-      name: "User Test",
-      email: "user@test.com",
-      password: "password",
-    };
-    await createUserUseCase.execute(user);
+    const user01 = await createUserUseCase.execute({
+      name: "User 01",
+      email: "user01@test.com",
+      password: "1234"
+    })
 
-    const token = await authenticateUserUseCase.execute({
-      email: user.email,
-      password: user.password,
+    const user02 = await createUserUseCase.execute({
+      name: "User 02",
+      email: "user02@test.com",
+      password: "1234"
+    })
+
+    await createStatementUseCase.execute({
+      user_id: user01.id as string,
+      type: OperationType.DEPOSIT,
+      amount: 200,
+      description: "Depositing $200",
     });
 
     await createStatementUseCase.execute({
-      user_id: token.user.id as string,
+      user_id: user01.id as string,
+      type: OperationType.WITHDRAW,
+      amount: 30,
+      description: "Withdrawing $30",
+    });
+
+    await createStatementUseCase.execute({
+      user_id: user02.id as string,
+      sender_id: user01.id as string,
+      type: OperationType.TRANSFER,
+      amount: 50,
+      description: "Transfer $50 to User 02",
+    });
+
+    await createStatementUseCase.execute({
+      user_id: user02.id as string,
       type: OperationType.DEPOSIT,
       amount: 100,
       description: "Depositing $100",
     });
 
     await createStatementUseCase.execute({
-      user_id: token.user.id as string,
-      type: OperationType.WITHDRAW,
-      amount: 30,
-      description: "Withdrawing $30",
+      user_id: user01.id as string,
+      sender_id: user02.id as string,
+      type: OperationType.TRANSFER,
+      amount: 100,
+      description: "Transfer $100 to User 01",
     });
 
     const result = await getBalanceUseCase.execute({
-      user_id: token.user.id as string
+      user_id: user01.id as string
     });
 
     expect(result).toHaveProperty("balance");
