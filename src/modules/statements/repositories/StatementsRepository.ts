@@ -1,6 +1,6 @@
 import { getRepository, Repository } from "typeorm";
 
-import { Statement } from "../entities/Statement";
+import { OperationType, Statement } from "../entities/Statement";
 import { ICreateStatementDTO } from "../useCases/createStatement/ICreateStatementDTO";
 import { IGetBalanceDTO } from "../useCases/getBalance/IGetBalanceDTO";
 import { IGetStatementOperationDTO } from "../useCases/getStatementOperation/IGetStatementOperationDTO";
@@ -15,10 +15,32 @@ export class StatementsRepository implements IStatementsRepository {
 
   async create({
     user_id,
+    sender_id,
     amount,
     description,
     type
   }: ICreateStatementDTO): Promise<Statement> {
+    if (type === OperationType.TRANSFER) {
+      const senderStatement = this.repository.create({
+        user_id: sender_id,
+        amount,
+        description,
+        type
+      });
+
+      await this.repository.save(senderStatement);
+
+      const receiverStatement = this.repository.create({
+        user_id,
+        sender_id,
+        amount,
+        description,
+        type
+      });
+
+      return this.repository.save(receiverStatement);
+    }
+
     const statement = this.repository.create({
       user_id,
       amount,
@@ -44,13 +66,7 @@ export class StatementsRepository implements IStatementsRepository {
       where: { user_id }
     });
 
-    const balance = statement.reduce((acc, operation) => {
-      if (operation.type === 'deposit') {
-        return acc + operation.amount;
-      } else {
-        return acc - operation.amount;
-      }
-    }, 0)
+    const balance = statement.reduce((acc, operation) => acc + (operation.type === OperationType.DEPOSIT || operation.sender_id ? Number(operation.amount) : -Number(operation.amount)), 0)
 
     if (with_statement) {
       return {
