@@ -90,33 +90,57 @@ describe("Create a statement", () => {
     }).rejects.toBeInstanceOf(CreateStatementError.UserNotFound);
   });
 
-  it("should not be able to create a withdraw when user has insufficient funds", () => {
-    expect(async () => {
-      const user: ICreateUserDTO = {
-        name: "User Test",
-        email: "user@test.com",
-        password: "password",
-      };
-      await createUserUseCase.execute(user);
+  it("should not be able to create a withdraw when user has insufficient funds", async () => {
+    const user = await createUserUseCase.execute({
+      name: "User Test",
+      email: "user@test.com",
+      password: "password",
+    });
 
-      const token = await authenticateUserUseCase.execute({
-        email: user.email,
-        password: user.password,
-      });
+    await createStatementUseCase.execute({
+      user_id: user.id as string,
+      type: OperationType.DEPOSIT,
+      amount: 50,
+      description: "Depositing $50",
+    });
 
-      await createStatementUseCase.execute({
-        user_id: token.user.id as string,
-        type: OperationType.DEPOSIT,
-        amount: 50,
-        description: "Depositing $50",
-      });
-
-      await createStatementUseCase.execute({
-        user_id: token.user.id as string,
+    await expect(createStatementUseCase.execute({
+        user_id: user.id as string,
         type: OperationType.WITHDRAW,
         amount: 100,
         description: "Withdrawing $100",
-      });
-    }).rejects.toBeInstanceOf(CreateStatementError.InsufficientFunds);
+      })).rejects.toEqual(new CreateStatementError.InsufficientFunds());
+  });
+
+  it("should be able to create a transfer", async () => {
+    const user01 = await createUserUseCase.execute({
+      name: "User 01",
+      email: "user01@test.com",
+      password: "1234"
+    })
+
+    const user02 = await createUserUseCase.execute({
+      name: "User 02",
+      email: "user02@test.com",
+      password: "1234"
+    })
+
+    await createStatementUseCase.execute({
+      user_id: user01.id as string,
+      type: OperationType.DEPOSIT,
+      amount: 100,
+      description: "Depositing $100",
+    });
+
+    const statement = await createStatementUseCase.execute({
+      user_id: user02.id as string,
+      sender_id: user01.id as string,
+      type: OperationType.TRANSFER,
+      amount: 50,
+      description: "Transfer $50 to User 02",
+    });
+
+    expect(statement).toHaveProperty("id");
+    expect(statement.amount).toEqual(50);
   });
 });
